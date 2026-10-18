@@ -1,5 +1,7 @@
 # Coach de LoL 100% local
 
+![Coach de LoL 100% local](docs/img/banner.jpg)
+
 Coach de voz para League of Legends que roda **inteiro no seu PC**: sem API paga, sem nuvem, sem ler a memória do jogo. É o coach que fala na live do [CanalliTV](https://twitch.tv/canallitv).
 
 - Dá dicas por voz durante a partida: objetivo nascendo, ouro para voltar à base, farm baixo, rival na frente.
@@ -89,6 +91,8 @@ Os modelos de voz (Kokoro) e de ouvido (Whisper) são baixados sozinhos na prime
 
 ## O que deu errado no caminho (e como resolvemos)
 
+<p align="center"><img src="docs/img/cutelo-negro.jpg" alt="O robô coach segurando uma placa: NÃO É O CUTELO NEGRO" width="560"></p>
+
 - **`qwen3:4b` vazava o raciocínio em inglês.** Ele só sabe "pensar"; use `qwen3:4b-instruct` ou `qwen3:8b` com `"think": false`.
 - **A IA inventava posição de inimigo.** O prompt deixa claro que ela não vê o mapa e deve dizer isso.
 - **Sugeriu Cutelo Negro para Master Yi.** Modelo pequeno não conhece o meta; a sugestão passou a vir da sua build e do meta do patch, com os atributos oficiais.
@@ -104,6 +108,8 @@ O coach só usa a API local oficial (a mesma de Porofessor, Blitz e Mobalytics).
 ## Créditos
 
 [Ollama](https://ollama.com) · [Qwen3](https://ollama.com/library/qwen3) · [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) · [faster-whisper](https://github.com/SYSTRAN/faster-whisper) · [Data Dragon](https://developer.riotgames.com/docs/lol#data-dragon) · [lolalytics](https://lolalytics.com)
+
+As imagens deste README foram geradas localmente com Flux 2 na ComfyUI, com o mascote do canal como referência.
 
 *Projeto de fã, sem relação com a Riot Games. League of Legends é marca da Riot Games, Inc.*
 
