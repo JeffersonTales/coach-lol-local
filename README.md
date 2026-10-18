@@ -106,3 +106,5 @@ O coach só usa a API local oficial (a mesma de Porofessor, Blitz e Mobalytics).
 [Ollama](https://ollama.com) · [Qwen3](https://ollama.com/library/qwen3) · [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) · [faster-whisper](https://github.com/SYSTRAN/faster-whisper) · [Data Dragon](https://developer.riotgames.com/docs/lol#data-dragon) · [lolalytics](https://lolalytics.com)
 
 *Projeto de fã, sem relação com a Riot Games. League of Legends é marca da Riot Games, Inc.*
+
+Licença: [MIT](LICENSE).
