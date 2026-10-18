@@ -1,0 +1,14 @@
+# Exemplo. Copie para builds.yaml (ou gere com: python builds.py meus, com o cliente do LoL aberto).
+# O coach sugere o PRÓXIMO item desta lista que você ainda não tem.
+# Nomes como aparecem no jogo (em português), na ordem em que você compra. Botas não precisam entrar.
+
+Master Yi:
+- Espada do Rei Destruído
+- Mata-Cráquens
+- Limite da Razão
+- Dança da Morte
+- Lâmina da Fúria de Guinsoo
+Ahri:
+- Tocha de Chamas Negras
+- Perdição de Lich
+- Capuz da Morte de Rabadon

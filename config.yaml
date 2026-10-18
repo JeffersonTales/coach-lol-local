@@ -1,0 +1,60 @@
+﻿# Coach de LoL — configuração
+# Depois de mudar algo aqui, feche e abra o coach de novo.
+
+jogador:
+  canal: CanalliTV    # nome do seu canal (o coach se apresenta como parceiro de duo dele)
+  rota: ""            # TOP, JUNGLE, MIDDLE, BOTTOM ou UTILITY (vazio = detecta pela partida)
+  meta_cs_min: 7.0    # meta de tropas por minuto (suporte e caçador são ignorados)
+
+voz:
+  ativada: true
+  voz: pf_dora        # pf_dora (feminina) ou pm_alex / pm_santa (masculinas)
+  velocidade: 1.1
+  volume: 0.9         # 0.0 a 1.0
+  intervalo_min: 20   # segundos mínimos entre falas (dicas urgentes podem falar após 8 s)
+  validade: 15        # dica que esperou mais que isso na fila é descartada
+  threads_cpu: 2      # núcleos que a voz pode usar (deixa o resto para o jogo e o OBS)
+
+overlay:
+  arquivo: dica_atual.txt   # no OBS: Fonte de Texto (GDI+) → "Ler do arquivo"
+  limpar_apos: 12           # segundos até apagar a dica da tela
+
+llm:
+  ativado: true       # false = só regras (zero uso de placa de vídeo pela IA)
+  url: http://127.0.0.1:11434
+  modelo: qwen3:8b    # inventa menos que o qwen3:4b-instruct (5,3 GB de VRAM em vez de 2,9 GB)
+  contexto: 4096
+  timeout: 8          # se a IA demorar mais que isso, a resposta é descartada
+  intervalo_macro: 75 # segundos entre análises gerais da partida
+
+ouvido:
+  ativado: true       # responde quando você diz "Coach, ..." (precisa do llm ativado)
+  nomes: [coach, couch, coche, cotch, koch, cot, côte, coaxe]   # jeitos que o Whisper costuma escrever "coach"
+  microfone: Fifine   # parte do nome do microfone no Windows
+  sensibilidade: 2    # detector de voz: 0 (pega tudo) a 3 (só fala clara)
+  modelo_rapido: base # procura o nome do coach em cada frase
+  modelo_bom: small   # transcreve a pergunta quando ele foi chamado
+  threads_cpu: 4
+
+regras:
+  ouro_para_base: 1300
+  intervalo_ouro: 90
+  intervalo_cs: 180
+  diferenca_nivel: 2
+  aviso_objetivo: 60  # avisa X segundos antes do objetivo nascer
+  # tempos em segundos de jogo — confira se mudaram no patch atual
+  dragao_primeiro: 300
+  dragao_renasce: 300
+  barao_primeiro: 1200
+  barao_renasce: 360
+  arauto_primeiro: 900
+
+guarda:
+  gpu_max: 90         # % de uso da GPU acima do qual a IA pausa
+  vram_livre_min: 1500  # MB de VRAM livre mínima
+  calmo_por: 30       # segundos estável até a IA voltar
+  obs:
+    ativado: true     # usa o WebSocket do OBS (Ferramentas → Configurações do WebSocket)
+    host: 127.0.0.1
+    porta: 4455
+    senha: ""         # vazio = lê a senha da configuração do próprio OBS

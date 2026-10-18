@@ -1,0 +1,11 @@
+# torch (CPU) antes de tudo: pip install torch --index-url https://download.pytorch.org/whl/cpu
+kokoro>=0.9.4
+soundfile
+sounddevice
+faster-whisper
+webrtcvad-wheels
+requests
+pyyaml
+nvidia-ml-py
+psutil
+obsws-python

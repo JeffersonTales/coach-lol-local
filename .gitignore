@@ -1,0 +1,11 @@
+# ambiente e cache
+.venv/
+__pycache__/
+dados/
+
+# coisas pessoais / geradas em uso
+builds.yaml
+chave_riot.txt
+coach.log
+medicao*.csv
+dica_atual.txt
