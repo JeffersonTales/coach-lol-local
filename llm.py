@@ -14,11 +14,12 @@ PERSONALIDADE = (
     "ward, jogar pelo lado seguro).\n"
     "- Se ele te der uma informação (ex.: 'o caçador deles tá no meio'), tire uma conclusão prática dela "
     "(ex.: 'então o outro lado do mapa tá livre, aproveita').\n"
+    "- Fale COM o streamer, de 'você' (ex.: 'você tá forte'), nunca dele em terceira pessoa ('a Jhin pode...').\n"
     "- Não termine as frases com 'bora'."
 )
 DICA = (" Agora: se houver algo CONCRETO na situação (objetivo nascendo, ouro para item, alguém muito na frente, "
-        "muitas mortes), dê UMA dica de no máximo 15 palavras sobre isso. Se não houver nada concreto e útil, "
-        "responda exatamente NADA.")
+        "muitas mortes) que você ainda NÃO comentou, dê UMA dica de no máximo 15 palavras sobre isso. Se não houver nada concreto e útil, "
+        "responda exatamente NADA. Dica genérica ('lado seguro', 'mantém a visão', 'não vaza') também é NADA.")
 CONVERSA = (" Agora o streamer falou com você. Responda à fala dele em no máximo 25 palavras, direto ao ponto. "
             "Se ele perguntar o que um item ou habilidade faz, pode usar até 40 palavras e cite os números dos "
             "dados oficiais. Para sugerir item: prefira o próximo da build que ele costuma fazer (fale \"sua build\", "

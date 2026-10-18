@@ -45,6 +45,27 @@ def configurar_log():
         log.addHandler(h)
 
 
+def palavras(texto):
+    return {p for p in normalizar(texto) if len(p) > 3}
+
+
+def repetida(texto, anteriores, limite=0.5):
+    """O modelo pequeno ignora o "não repita": aqui a dica com metade das palavras iguais a uma recente é cortada."""
+    novas = palavras(texto)
+    for velha in anteriores:
+        iguais = len(novas & palavras(velha)) / max(1, min(len(novas), len(palavras(velha))))
+        if iguais >= limite:
+            return True
+    return False
+
+
+def foto_partida(dados):
+    """Placar, itens, níveis e objetivos. Se nada disso mudou, não há dica nova de macro para dar."""
+    ps = dados.get("allPlayers", [])
+    return (tuple((p.get("level"), tuple(sorted(p.get("scores", {}).items())), len(p.get("items", []))) for p in ps),
+            len(dados.get("events", {}).get("Events", [])))
+
+
 class Coach:
     def __init__(self, cfg, fonte=live_client.ler_partida):
         self.cfg = cfg
@@ -59,7 +80,8 @@ class Coach:
         self.ultimos_dados = None
         self.historico = deque(maxlen=4)   # últimas conversas, para ele entender "e depois?"
         self.silencio_ate = 0.0            # "Coach, silêncio" pausa as dicas automáticas
-        self.ultimas_dicas = deque(maxlen=3)   # a IA vê as últimas dicas para não repetir
+        self.ultimas_dicas = deque(maxlen=6)   # a IA vê as últimas dicas para não repetir
+        self._foto_macro = None                # como a partida estava na última análise geral
         self.saber = Conhecimento()            # itens e campeões oficiais (Data Dragon)
         ouvir = cfg["ouvido"]["ativado"] and self.llm
         self.ouvido = Ouvido(cfg, self.voz, self.responder,
@@ -130,6 +152,9 @@ class Coach:
                 inicio = time.monotonic()
                 resposta = self.llm.perguntar(pedido, resumo, list(self.ultimas_dicas))
                 log.info("IA em %.1fs", time.monotonic() - inicio)
+                if resposta and repetida(resposta, self.ultimas_dicas):
+                    log.info("descartada (repetida): %s", resposta)
+                    resposta = None
                 if resposta:
                     self.ultimas_dicas.append(resposta)
                 if resposta or reserva:
@@ -168,6 +193,10 @@ class Coach:
         t = dados["gameData"]["gameTime"]
         if self.llm and t - self._ultima_macro >= self.cfg["llm"]["intervalo_macro"] and not self.voz.ocupada():
             self._ultima_macro = t
+            foto = foto_partida(dados)
+            if foto == self._foto_macro:   # nada mudou desde a última análise: ficar quieto, não repetir
+                return
+            self._foto_macro = foto
             self._pedir_llm("Qual a melhor decisão de macro para os próximos 60 segundos?",
                             resumo_partida(dados), None, BAIXA)
 

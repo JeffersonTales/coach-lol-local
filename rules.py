@@ -172,7 +172,7 @@ def resumo_partida(dados):
     if eu:
         s = eu.get("scores", {})
         itens = ", ".join(i.get("displayName", "") for i in eu.get("items", [])) or "nenhum"
-        linhas.append(f"Eu: {eu['championName']} ({ROTA_PT.get(rota(eu), 'rota ?')}), nível {eu.get('level')}, "
+        linhas.append(f"Streamer (fale com ele de você): {eu['championName']} ({ROTA_PT.get(rota(eu), 'rota ?')}), nível {eu.get('level')}, "
                       f"KDA {s.get('kills')}/{s.get('deaths')}/{s.get('assists')}, CS {s.get('creepScore')}, "
                       f"ouro {int(dados['activePlayer'].get('currentGold', 0))}, itens: {itens}")
         for aliado, rotulo in ((True, "Aliados"), (False, "Inimigos")):

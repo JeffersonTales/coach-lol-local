@@ -25,7 +25,7 @@ llm:
   modelo: qwen3:8b    # inventa menos que o qwen3:4b-instruct (5,3 GB de VRAM em vez de 2,9 GB)
   contexto: 4096
   timeout: 8          # se a IA demorar mais que isso, a resposta é descartada
-  intervalo_macro: 75 # segundos entre análises gerais da partida
+  intervalo_macro: 120 # segundos entre análises gerais (só se algo mudou na partida)
 
 ouvido:
   ativado: true       # responde quando você diz "Coach, ..." (precisa do llm ativado)
