@@ -22,10 +22,22 @@ overlay:
 llm:
   ativado: true       # false = só regras (zero uso de placa de vídeo pela IA)
   url: http://127.0.0.1:11434
-  modelo: qwen3:8b    # inventa menos que o qwen3:4b-instruct (5,3 GB de VRAM em vez de 2,9 GB)
+  modelo: qwen3-vl:8b-instruct # conversa e enxerga o minimapa (antes: qwen3:8b, só texto)
   contexto: 4096
   timeout: 8          # se a IA demorar mais que isso, a resposta é descartada
+  comentar_apos: 30   # se ficar esse tanto de segundos calado (com você vivo), comenta o momento; 0 = nunca
   intervalo_macro: 120 # segundos entre análises gerais (só se algo mudou na partida)
+
+visao:
+  ativado: false      # olha o minimapa (precisa de modelo com visão em llm.modelo, ex.: qwen3-vl:8b-instruct)
+  intervalo: 30       # segundos de jogo entre olhadas
+  ler_mapa: true      # lê o minimapa por cor (sem IA): avisa inimigos perto, agrupados, na sua selva
+  ler_a_cada: 5       # segundos de jogo entre leituras
+  coletar: true       # guarda prints do minimapa em dados/minimapas/ (sem IA) para calibrar
+  coletar_a_cada: 20  # segundos de jogo entre prints
+  fonte_obs: Captura de jogo   # nome da fonte de captura do jogo no OBS
+  tamanho_px: 280     # lado do minimapa em pixels numa tela 1080p (depende da escala do minimapa no LoL)
+  lado_ia: 448        # a imagem é reduzida para este tamanho antes de ir para a IA (menor = mais rápido)
 
 ouvido:
   ativado: true       # responde quando você diz "Coach, ..." (precisa do llm ativado)

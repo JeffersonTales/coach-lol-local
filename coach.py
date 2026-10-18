@@ -10,6 +10,7 @@ Testes: python coach.py --teste-voz | --teste-llm | --simular
 Parar:  feche a janela ou Ctrl+C
 """
 import argparse
+import json
 import logging
 import random
 import sys
@@ -25,15 +26,22 @@ import live_client
 from conhecimento import Conhecimento
 from guard import Guarda, baixar_prioridade
 from llm import LLM
+from visao import Visao
+import minimapa
+from minimapa import Olheiro
 from ouvido import OI, Ouvido, normalizar
 from rules import BAIXA, NORMAL, RESPOSTA, Regras, resumo_partida
 from voice import Voz
 
 PASTA = Path(__file__).resolve().parent
 INTERVALO_API = 2      # segundos entre leituras da partida
+ARQ_ESTADO = "estado_coach.json"
 
 log = logging.getLogger("coach")
 # ditas assim que ele entende a pergunta, para você saber que ele ouviu enquanto a IA pensa
+COMENTARIO = ("Comente o momento como um parceiro de duo: UMA dica prática de no máximo 18 palavras, apoiada em um "
+              "fato da linha 'Agora' (onde os inimigos aparecem no minimapa, objetivo, inimigos mortos, seu ouro). "
+              "Diga o fato e o que fazer por causa dele.")
 PENSANDO = ("Hum, deixa eu ver.", "Peraí, pensando aqui.", "Boa pergunta, deixa eu ver.")
 
 
@@ -87,6 +95,16 @@ class Coach:
         self.ultimas_dicas = deque(maxlen=6)   # a IA vê as últimas dicas para não repetir
         self._foto_macro = None                # como a partida estava na última análise geral
         self.saber = Conhecimento()            # itens e campeões oficiais (Data Dragon)
+        self.visao = Visao(cfg) if self.llm and cfg.get("visao", {}).get("ativado") else None
+        self._ultimo_mapa = 0.0
+        v = cfg.get("visao", {})
+        # leitura do minimapa por cor (sem IA): onde os inimigos aparecem
+        self._olhos = Visao(cfg) if v.get("ler_mapa") or v.get("coletar") else None
+        self.olheiro = Olheiro()
+        self._olhando = threading.Lock()
+        self._ultima_olhada = -1e9
+        self._ultima_coleta = -1e9
+        self._pasta_coleta = None
         ouvir = cfg["ouvido"]["ativado"] and self.llm
         self.ouvido = Ouvido(cfg, self.voz, self.responder,
                              lambda: self.saber.vocabulario(self.ultimos_dados)) if ouvir else None
@@ -127,8 +145,7 @@ class Coach:
         self.voz.escrever_overlay("🤔 Pensando…")
         resumo = resumo_partida(self.ultimos_dados) if self.ultimos_dados else "Fora de partida (no lobby ou na seleção)."
         if self.ultimos_dados:
-            fatos = self.regras.agora(self.ultimos_dados)
-            resumo += "\nAgora: " + ("; ".join(fatos) if fatos else "nenhum objetivo perto de nascer")
+            resumo = self._resumo_completo(self.ultimos_dados)
         # conversa antiga não entra: o modelo pequeno copia as frases dela em vez de responder a pergunta nova
         if time.monotonic() - self._ultima_conversa > 60:
             self.historico.clear()
@@ -142,41 +159,82 @@ class Coach:
             log.info("dados oficiais enviados: %s", oficiais.split("\n")[0])
         try:
             inicio = time.monotonic()
+            self.guarda.ia_trabalhando(True)
             resposta = self.llm.conversar(fala, resumo, list(self.historico), oficiais)
             log.info("IA respondeu em %.1fs", time.monotonic() - inicio)
         finally:
+            self.guarda.ia_trabalhando(False)
             self._llm_ocupado.release()
         resposta = resposta or "Deu um branco aqui, pergunta de novo?"
         self.historico.append((fala, resposta))
         self._ultima_conversa = time.monotonic()
         self.voz.dizer(resposta, RESPOSTA, "resposta")
 
+    def _resumo_completo(self, dados):
+        """Placar + fatos do momento + o que o minimapa mostra: o que a IA sabe da partida."""
+        fatos = self.regras.agora(dados)
+        eu = live_client.meu_jogador(dados)
+        mapa = self.olheiro.resumo(eu.get("team")) if eu else ""
+        fatos += [mapa] if mapa else []
+        return resumo_partida(dados) + "\nAgora: " + ("; ".join(fatos) if fatos else "nenhum objetivo perto de nascer")
+
     def _dicas_ligadas(self):
         return time.monotonic() >= self.silencio_ate
 
-    def _pedir_llm(self, pedido, resumo, reserva, prioridade):
-        """Uma pergunta por vez. Ocupado, pausado ou lento → usa a frase pronta das regras."""
+    def _pedir_llm(self, pedido, resumo, reserva, prioridade, mapa=False):
+        """Uma pergunta por vez. Ocupado, pausado, sem nada concreto ou repetido → usa a frase pronta (reserva)."""
+        def dizer(texto):
+            if texto and not repetida(texto, self.ultimas_dicas):
+                self.ultimas_dicas.append(texto)
+                self.voz.dizer(texto, prioridade, chave="ia")
+
         if not self.llm or not self.guarda.livre or not self._llm_ocupado.acquire(blocking=False):
-            if reserva:
-                self.voz.dizer(reserva, prioridade)
+            dizer(reserva)
             return
 
         def tarefa():
             try:
                 inicio = time.monotonic()
-                resposta = self.llm.perguntar(pedido, resumo, list(self.ultimas_dicas))
-                log.info("IA em %.1fs", time.monotonic() - inicio)
+                self.guarda.ia_trabalhando(True)
+                if mapa:
+                    imagem = self.visao.minimapa()
+                    resposta = self.llm.ver_mapa(imagem, resumo, list(self.ultimas_dicas)) if imagem else None
+                else:
+                    resposta = self.llm.perguntar(pedido, resumo, list(self.ultimas_dicas))
+                self.guarda.ia_trabalhando(False)
+                log.info("IA %sem %.1fs", "(minimapa) " if mapa else "", time.monotonic() - inicio)
                 if resposta and repetida(resposta, self.ultimas_dicas):
                     log.info("descartada (repetida): %s", resposta)
                     resposta = None
-                if resposta:
-                    self.ultimas_dicas.append(resposta)
-                if resposta or reserva:
-                    self.voz.dizer(resposta or reserva, prioridade, chave="ia")
+                dizer(resposta or reserva)
             finally:
+                self.guarda.ia_trabalhando(False)
                 self._llm_ocupado.release()
 
         threading.Thread(target=tarefa, daemon=True).start()
+
+    def _olhar(self, dados, t):
+        """Lê o minimapa (uns milissegundos no processador) e fala o que for importante."""
+        with self._olhando:
+            v = self.cfg["visao"]
+            imagem = self._olhos.recorte()
+            if imagem is None:
+                return
+            if v.get("coletar") and t - self._ultima_coleta >= v["coletar_a_cada"]:
+                self._ultima_coleta = t
+                self._pasta_coleta.mkdir(parents=True, exist_ok=True)
+                imagem.save(self._pasta_coleta / f"{int(t // 60):02d}m{int(t % 60):02d}s.png")
+            if not v.get("ler_mapa"):
+                return
+            eu = live_client.meu_jogador(dados)
+            if not eu or eu.get("isDead"):
+                return
+            dicas = self.olheiro.avaliar(minimapa.ler(imagem), eu.get("team"), self.regras._rota(eu) == "JUNGLE",
+                                         t, self.regras._objetivo_livre(t))
+            if self._dicas_ligadas():
+                for texto, prioridade in dicas:
+                    log.info("mapa: %s", texto)
+                    self.voz.dizer(texto, prioridade, chave="mapa")
 
     def passo(self):
         dados = self.fonte()
@@ -189,6 +247,7 @@ class Coach:
         if not self.em_partida:
             self.em_partida = True
             self.regras.nova_partida()
+            self._pasta_coleta = PASTA / "dados" / "minimapas" / time.strftime("%Y-%m-%d_%H%M")
             self._ultima_macro = dados["gameData"]["gameTime"]
             log.info("partida encontrada (%s)", dados["gameData"].get("gameMode"))
             self.voz.dizer("Coach na área. Bom jogo!", NORMAL)
@@ -205,16 +264,57 @@ class Coach:
                 self.voz.dizer(dica.texto, dica.prioridade, dica.chave)
 
         t = dados["gameData"]["gameTime"]
-        if self.llm and t - self._ultima_macro >= self.cfg["llm"]["intervalo_macro"] and not self.voz.ocupada():
+        if self._olhos and t - self._ultima_olhada >= self.cfg["visao"]["ler_a_cada"] and not self._olhando.locked():
+            self._ultima_olhada = t
+            threading.Thread(target=self._olhar, args=(dados, t), daemon=True).start()
+        if self.visao and t - self._ultimo_mapa >= self.cfg["visao"]["intervalo"] and not self.voz.ocupada():
+            # olhando o minimapa sempre há assunto novo; a análise geral sem imagem fica para depois
+            self._ultimo_mapa = self._ultima_macro = t
+            self._pedir_llm(None, resumo_partida(dados), None, BAIXA, mapa=True)
+            return
+        # ficou quieto por um tempo e você está vivo: comenta o momento com o que está acontecendo de verdade
+        quieto = self.cfg["llm"].get("comentar_apos", 30)
+        eu = live_client.meu_jogador(dados)
+        if (quieto and eu and not eu.get("isDead") and not self.voz.ocupada()
+                and self.voz.falou_ha() >= quieto and t - self._ultima_macro >= quieto):
             self._ultima_macro = t
-            foto = foto_partida(dados)
-            if foto == self._foto_macro:   # nada mudou desde a última análise: ficar quieto, não repetir
-                return
-            self._foto_macro = foto
-            self._pedir_llm("Qual a melhor decisão de macro para os próximos 60 segundos?",
-                            resumo_partida(dados), None, BAIXA)
+            narrado = self.olheiro.narrar(eu.get("team"))
+            if narrado and not repetida(narrado, self.ultimas_dicas):
+                # o que o mapa mostra, dito direto: a IA confundia os lados ao reescrever
+                self.ultimas_dicas.append(narrado)
+                self.voz.dizer(narrado, BAIXA, chave="ia")
+            elif self.llm:
+                self._pedir_llm(COMENTARIO, self._resumo_completo(dados), None, BAIXA)
+
+    def estado(self):
+        """O que o coach está fazendo agora, para o Stream Deck mostrar (lido pelo controle.py)."""
+        if not self.em_partida:
+            return "⏳ Esperando a partida"
+        if self.voz.falando:
+            return "🗣️ Falando"
+        if self.ouvido and self.ouvido.entendendo:
+            return "🎤 Entendendo você"
+        if self._llm_ocupado.locked():
+            return "🤔 Pensando"
+        if self.ouvido and time.monotonic() < self.ouvido._esperando_ate:
+            return "👂 Esperando sua pergunta"
+        if not self._dicas_ligadas():
+            return f"🤫 Em silêncio por mais {int(self.silencio_ate - time.monotonic())} s"
+        if self.llm and not self.guarda.livre:
+            return f"⏸️ IA pausada ({self.guarda.motivo}), só dicas fixas"
+        return "👂 Ouvindo (chame \"Coach\")"
+
+    def _publicar_estado(self):
+        arq = PASTA / ARQ_ESTADO
+        while True:
+            try:
+                arq.write_text(json.dumps({"estado": self.estado()}, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+            time.sleep(1)
 
     def rodar(self, intervalo=INTERVALO_API):
+        threading.Thread(target=self._publicar_estado, daemon=True).start()
         log.info("esperando uma partida... (abra o LoL e entre em jogo)")
         while True:
             try:

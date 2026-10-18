@@ -45,6 +45,7 @@ class Guarda:
         except Exception as erro:
             log.warning("sem leitura da GPU (%s) — guarda só pelo OBS", erro)
         self._obs_tentativa = 0.0
+        self._ia_ate = 0.0   # enquanto a própria IA do coach roda (e logo depois), o pico da GPU é dela
         threading.Thread(target=self._loop, daemon=True).start()
 
     def _conectar_obs(self):
@@ -68,12 +69,16 @@ class Guarda:
         except Exception:
             self._obs = None
 
+    def ia_trabalhando(self, ativa):
+        """O coach avisa quando chama a IA: esse pico de ~1 s não é o jogo sofrendo e não deve pausar nada."""
+        self._ia_ate = float("inf") if ativa else time.monotonic() + 4
+
     def _medir(self):
         if self._gpu:
             uso = self._nv.nvmlDeviceGetUtilizationRates(self._gpu).gpu
             mem = self._nv.nvmlDeviceGetMemoryInfo(self._gpu)
             livre_mb = mem.free / 2**20
-            if uso > self.cfg["gpu_max"]:
+            if uso > self.cfg["gpu_max"] and time.monotonic() >= self._ia_ate:
                 return f"GPU em {uso}%"
             if livre_mb < self.cfg["vram_livre_min"]:
                 return f"VRAM livre {livre_mb:.0f} MB"

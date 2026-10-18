@@ -2,7 +2,7 @@
 Controle do coach para o Stream Deck do OBS
 ===========================================
 Serviço pequeno e escondido (inicia com o Windows, igual ao banner do Spotify) que liga e desliga o coach.
-http://127.0.0.1:8767/status    -> {"rodando": bool, "dica": "..."}
+http://127.0.0.1:8767/status    -> {"rodando": bool, "estado": "🤔 Pensando", "dica": "..."}
 POST /ligar  |  POST /desligar  (desligar também tira a IA da placa de vídeo)
 
 Só aceita pedidos do próprio deck (página file:// com o cabeçalho X-Deck); outros sites são recusados.
@@ -22,6 +22,8 @@ PORTA = 8767
 PYTHON = PASTA / ".venv" / "Scripts" / "python.exe"
 SEM_JANELA = 0x08000000   # CREATE_NO_WINDOW
 
+ESTADO = PASTA / "estado_coach.json"   # o coach escreve aqui o que está fazendo, a cada segundo
+
 coach = None
 
 
@@ -33,6 +35,7 @@ def ligar():
     global coach
     if not rodando():
         (PASTA / "dica_atual.txt").write_text("", encoding="utf-8")
+        ESTADO.write_text(json.dumps({"estado": "⚙️ Carregando (voz, IA e ouvido)…"}, ensure_ascii=False), encoding="utf-8")
         coach = subprocess.Popen([str(PYTHON), "coach.py"], cwd=PASTA, creationflags=SEM_JANELA,
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -77,7 +80,11 @@ class Handler(BaseHTTPRequestHandler):
             dica = (PASTA / "dica_atual.txt").read_text(encoding="utf-8").strip()
         except OSError:
             dica = ""
-        return {"rodando": rodando(), "dica": dica if rodando() else ""}
+        try:
+            estado = json.loads(ESTADO.read_text(encoding="utf-8")).get("estado", "")
+        except (OSError, ValueError):
+            estado = ""
+        return {"rodando": rodando(), "estado": estado if rodando() else "", "dica": dica if rodando() else ""}
 
     def do_OPTIONS(self):
         self._responder(204 if self._autorizado() else 403)

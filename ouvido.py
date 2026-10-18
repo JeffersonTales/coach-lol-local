@@ -46,6 +46,7 @@ class Ouvido:
         self._frases = queue.Queue(maxsize=3)
         self._rapido = self._bom = None
         self._esperando_ate = 0.0   # >agora: ele foi chamado e está esperando a pergunta
+        self.entendendo = False      # transcrevendo uma frase em que ouviu o nome (para o status do deck)
 
     def carregar(self):
         from faster_whisper import WhisperModel
@@ -136,7 +137,11 @@ class Ouvido:
             return None
         if self.voz:
             self.voz.escrever_overlay("🎤 Entendendo…")
-        texto = self._transcrever(self._bom, audio, 1, self._dica())   # beam 3 não ficou melhor nem mais rápido
+        self.entendendo = True
+        try:
+            texto = self._transcrever(self._bom, audio, 1, self._dica())   # beam 3 não ficou melhor nem mais rápido
+        finally:
+            self.entendendo = False
         pos = self.chamou(texto, 0.75)
         if pos is None:
             return None

@@ -9,3 +9,4 @@ pyyaml
 nvidia-ml-py
 psutil
 obsws-python
+pillow

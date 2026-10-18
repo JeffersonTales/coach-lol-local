@@ -4,7 +4,8 @@
 
 Coach de voz para League of Legends que roda **inteiro no seu PC**: sem API paga, sem nuvem, sem ler a memória do jogo. É o coach que fala na live do [CanalliTV](https://twitch.tv/canallitv).
 
-- Dá dicas por voz durante a partida: objetivo nascendo, ouro para voltar à base, farm baixo, rival na frente.
+- Dá dicas por voz durante a partida: objetivo nascendo, inimigos mortos ("corre pro dragão"), nível 6, item fechado, inimigo forte, o que provavelmente deu errado quando você morre.
+- **Lê o minimapa** (por cor, sem IA): avisa inimigos perto de você, agrupados, na sua selva, e comenta o momento quando fica muito tempo calado.
 - **Conversa**: você diz *"Coach, que item eu faço agora?"* e ele responde em português, com os dados reais da partida.
 - Sugere item pela **sua build** (lida do seu histórico) e pelo **meta do patch**, e explica o porquê com os atributos oficiais dos itens.
 - A voz sai no áudio do PC, então o OBS já leva o coach para a live.
@@ -14,8 +15,9 @@ Coach de voz para League of Legends que roda **inteiro no seu PC**: sem API paga
 ```mermaid
 flowchart LR
   LOL["LoL — API local 127.0.0.1:2999"] --> REG["Regras em Python"]
+  OBSI["Captura de jogo do OBS"] --> MM["Minimapa por cor"] --> REG
   MIC["Microfone"] --> VAD["Detector de voz"] --> WH["Whisper base: procura 'Coach'"] --> WS["Whisper small: transcreve"]
-  REG --> LLM["Ollama · qwen3:8b (placa de vídeo)"]
+  REG --> LLM["Ollama · qwen3-vl:8b-instruct (placa de vídeo)"]
   WS --> LLM
   DD["Data Dragon + lolalytics + sua build"] --> LLM
   LLM --> TTS["Kokoro PT-BR (processador)"] --> OBS["OBS / live"]
@@ -29,17 +31,18 @@ A ideia central: **a IA quase não trabalha**. Regras simples em Python geram a 
 | | |
 |---|---|
 | Uso médio da placa com o coach ligado | 16% |
-| Resposta da IA (`qwen3:8b`) | ~1 s |
+| Resposta da IA (`qwen3-vl:8b-instruct`) | ~1 s |
+| Leitura do minimapa (processador) | ~40 ms |
 | Entender "Coach, …" | ~3 s |
 | OBS | 60 fps, 2 quadros pulados em 15 min |
 
-Máquina do teste: RTX 5060 Ti 16 GB, Ryzen 7 5700, 32 GB de RAM, live 936p60 com NVENC. O `qwen3:8b` ocupa ~5,3 GB de VRAM; com placa de 8 GB, use `qwen3:4b-instruct` (~2,9 GB) no `config.yaml`.
+Máquina do teste: RTX 5060 Ti 16 GB, Ryzen 7 5700, 32 GB de RAM, live 936p60 com NVENC. O `qwen3-vl:8b-instruct` ocupa ~5,5 GB de VRAM; com placa de 8 GB, use `qwen3:4b-instruct` (~2,9 GB) no `config.yaml`.
 
 ## Instalação (Windows)
 
 1. Instale o [Ollama](https://ollama.com) e baixe o modelo:
    ```
-   ollama pull qwen3:8b
+   ollama pull qwen3-vl:8b-instruct
    ```
 2. Instale o Python 3.12 e crie o ambiente nesta pasta:
    ```
@@ -66,6 +69,7 @@ Os modelos de voz (Kokoro) e de ouvido (Whisper) são baixados sozinhos na prime
   - `python coach.py --teste-ouvido` testa o "Coach, …" com frases sintéticas.
   - `python coach.py --simular` roda uma partida fictícia acelerada.
 - **Falar com ele**: "Coach, que item eu faço?", "por quê?", "o que faz a Dança da Morte?", "Coach, silêncio" (pausa as dicas por 5 min), "Coach, pode falar".
+- **Minimapa**: precisa do OBS aberto com uma fonte "Captura de jogo" (nome em `visao.fonte_obs`). Se o seu minimapa for maior ou menor, ajuste `visao.tamanho_px`. `comentar_apos` controla quanto ele fala sozinho.
 - **Na tela da live** (opcional): no OBS, crie uma Fonte de Texto lendo `dica_atual.txt`.
 - **Botão no Stream Deck do OBS** (opcional): `controle.py` é um serviço local (porta 8767) com `GET /status`, `POST /ligar` e `POST /desligar`. Só aceita pedidos de páginas `file://` com o cabeçalho `X-Deck: 1`. Desligar também tira a IA da memória da placa.
 - **Medir o impacto**: `python medir.py 30` grava GPU, VRAM e quadros do OBS por 30 min em `medicao.csv`.
@@ -79,6 +83,8 @@ Os modelos de voz (Kokoro) e de ouvido (Whisper) são baixados sozinhos na prime
 | `rules.py` | Regras de macro (objetivos, ouro, farm, nível) e o resumo da partida para a IA |
 | `llm.py` | Conversa com o Ollama; personalidade e regras anti-invenção |
 | `voice.py` | Voz Kokoro em PT-BR, com fila de prioridade e intervalo entre falas |
+| `minimapa.py` | Lê o minimapa por cor (anéis vermelhos = inimigos, quadrado branco = sua câmera) e gera os avisos |
+| `visao.py` | Pega o minimapa da "Captura de jogo" do OBS |
 | `ouvido.py` | "Coach, …": detector de voz + Whisper em duas etapas |
 | `conhecimento.py` | Itens e campeões oficiais do [Data Dragon](https://developer.riotgames.com/docs/lol#data-dragon), builds e meta |
 | `lolalytics.py` | Lê a build do patch no [lolalytics](https://lolalytics.com) (1 página por campeão por patch, em cache) |
@@ -99,7 +105,10 @@ Os modelos de voz (Kokoro) e de ouvido (Whisper) são baixados sozinhos na prime
 - **A pausa depois de "Coach" cortava a pergunta.** Ao ouvir só o nome, ele espera a próxima frase por 7 s.
 - **"Item" virava "tinha".** O Whisper recebe vocabulário de LoL e os nomes da partida atual como dica.
 - **No Treino a rota vem como `"NONE"`.** O caçador é detectado pelo feitiço Golpear.
-- **Dicas genéricas repetidas.** A IA vê as últimas dicas e responde `NADA` quando não tem algo concreto.
+- **Dicas genéricas repetidas.** A IA repetia "lado seguro, mantém a visão". As dicas automáticas passaram a vir de dados reais (placar, eventos, minimapa); a IA ficou para responder perguntas.
+- **O guarda-costas pausava a IA por causa da própria IA.** O pico de GPU de ~1 s da resposta parecia o jogo sofrendo; agora esse pico é ignorado.
+- **Modelo de visão lendo o minimapa inventava inimigos.** Testamos o `qwen3-vl`: com o mapa vazio ele dizia "inimigos no topo". A leitura por cor não inventa.
+- **`qwen3-vl:8b` só "pensa".** Use a versão `-instruct`.
 
 ## Risco de ban
 

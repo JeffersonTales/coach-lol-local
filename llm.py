@@ -29,6 +29,13 @@ CONVERSA = (" Agora o streamer falou com você. Responda à fala dele em no máx
             "(objetivo nascendo ou vivo, ouro para comprar o próximo item da build dele); nada de conselho vago "
             "como 'fica na segurança, não corra'. "
             "Se for sobre a partida, use a situação. Se não souber, diga que não sabe.")
+MAPA = (" Junto vai a imagem do MINIMAPA dele agora. Ícones com borda azul são aliados, com borda vermelha são "
+        "inimigos; só aparecem os inimigos que alguém está vendo. Olhe onde os inimigos estão (topo, meio, bot, "
+        "selva de cima ou de baixo, rio) e dê UMA dica de no máximo 18 palavras sobre o que fazer por causa disso "
+        "(ex.: 'três deles no bot, o topo tá livre pra empurrar'; 'caçador deles no seu lado, cuidado'). "
+        "Fale de 'inimigos', 'caçador deles' etc.; só diga o nome de um campeão se tiver certeza pelo ícone. "
+        "Você é quem olha o mapa: NUNCA mande ele olhar o minimapa. Se não houver ícone de campeão inimigo "
+        "(borda vermelha) visível, ou nada útil, responda exatamente NADA.")
 DADOS = "\n\nDados oficiais da Riot (use só estes atributos, não invente números):\n"
 
 
@@ -48,7 +55,7 @@ class LLM:
         self.timeout = c["timeout"]
         self.personalidade = PERSONALIDADE.format(canal=cfg["jogador"].get("canal") or "do canal")
 
-    def _chat(self, sistema, mensagens, limite, temperatura=0.6):
+    def _chat(self, sistema, mensagens, limite, temperatura=0.6, timeout=None):
         corpo = {
             "model": self.modelo,
             "stream": False,
@@ -58,7 +65,7 @@ class LLM:
             "messages": [{"role": "system", "content": sistema}] + mensagens,
         }
         try:
-            r = requests.post(self.url, json=corpo, timeout=self.timeout)
+            r = requests.post(self.url, json=corpo, timeout=timeout or self.timeout)
             r.raise_for_status()
             return limpar(r.json()["message"]["content"]) or None
         except (requests.RequestException, KeyError, ValueError):
@@ -70,6 +77,16 @@ class LLM:
                    + "\n- ".join(evitar)) if evitar else ""
         resposta = self._chat(self.personalidade + DICA,
                               [{"role": "user", "content": f"Situação da partida:\n{resumo}{repetir}\n\nPedido: {pedido}"}], 60)
+        if not resposta or resposta.strip(" .!").upper().startswith("NADA"):
+            return None
+        return resposta
+
+    def ver_mapa(self, imagem, resumo, evitar=()):
+        """Dica olhando o minimapa (modelo com visão, ex.: qwen3-vl). None = nada útil para dizer."""
+        repetir = ("\n\nVocê já disse isto há pouco, NÃO repita:\n- " + "\n- ".join(evitar)) if evitar else ""
+        resposta = self._chat(self.personalidade + MAPA,
+                              [{"role": "user", "content": f"Situação da partida:\n{resumo}{repetir}",
+                                "images": [imagem]}], 60, timeout=self.timeout * 2)
         if not resposta or resposta.strip(" .!").upper().startswith("NADA"):
             return None
         return resposta
