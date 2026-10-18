@@ -25,6 +25,9 @@ CONVERSA = (" Agora o streamer falou com você. Responda à fala dele em no máx
             "dados oficiais. Para sugerir item: prefira o próximo da build que ele costuma fazer (fale \"sua build\", "
             "nunca \"do streamer\"); cite o meta do patch como segunda "
             "opinião (a % de vitória por vaga de item é só referência); diga o porquê em poucas palavras. "
+            "Se ele perguntar o que fazer agora / próximo passo, dê UMA ação concreta tirada da linha 'Agora' "
+            "(objetivo nascendo ou vivo, ouro para comprar o próximo item da build dele); nada de conselho vago "
+            "como 'fica na segurança, não corra'. "
             "Se for sobre a partida, use a situação. Se não souber, diga que não sabe.")
 DADOS = "\n\nDados oficiais da Riot (use só estes atributos, não invente números):\n"
 
@@ -45,13 +48,13 @@ class LLM:
         self.timeout = c["timeout"]
         self.personalidade = PERSONALIDADE.format(canal=cfg["jogador"].get("canal") or "do canal")
 
-    def _chat(self, sistema, mensagens, limite):
+    def _chat(self, sistema, mensagens, limite, temperatura=0.6):
         corpo = {
             "model": self.modelo,
             "stream": False,
             "think": False,
             "keep_alive": "2h",   # fica carregado: sem pico de carregamento no meio da partida
-            "options": {"num_ctx": self.contexto, "num_predict": limite, "temperature": 0.6},
+            "options": {"num_ctx": self.contexto, "num_predict": limite, "temperature": temperatura},
             "messages": [{"role": "system", "content": sistema}] + mensagens,
         }
         try:
@@ -78,7 +81,7 @@ class LLM:
             mensagens += [{"role": "user", "content": f}, {"role": "assistant", "content": r}]
         extra = DADOS + dados_oficiais if dados_oficiais else ""
         mensagens.append({"role": "user", "content": f"Situação da partida:\n{resumo}{extra}\n\nStreamer: {fala}"})
-        return self._chat(self.personalidade + CONVERSA, mensagens, 130)
+        return self._chat(self.personalidade + CONVERSA, mensagens, 130, temperatura=0.3)
 
     def aquecer(self):
         """Carrega o modelo antes da partida começar."""

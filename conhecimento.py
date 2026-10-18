@@ -255,7 +255,7 @@ class Conhecimento:
         campeoes = self.achar_campeoes(fala)
         if campeoes:
             blocos.append("Campeões citados:\n" + "\n".join(f"- {self.descrever_campeao(c)}" for c in campeoes[:2]))
-        if dados and any(p in normal for p in ("item", "build", "compr", "faco agora", "fazer agora")):
+        if dados and any(p in normal for p in ("item", "build", "compr", "faco", "fazer agora", "proximo passo")):
             builds = self.builds(dados)
             blocos.append("\n".join(b for b in (builds, self.defesa(dados)) if b) if builds
                           else self.candidatos(dados))

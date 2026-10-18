@@ -127,6 +127,25 @@ class Regras:
                 dicas.append(Dica(frase, URGENTE))
         return dicas
 
+    def agora(self, dados):
+        """Fatos concretos do momento, para a IA responder "o que eu faço agora?" com algo útil."""
+        t = dados["gameData"]["gameTime"]
+        fatos = []
+        for nome, quando, desde in (("Dragão", self.e.proximo_dragao, 0), ("Arauto", self.e.arauto, 0),
+                                    ("Barão", self.e.proximo_barao, 0)):
+            if quando is None:
+                continue
+            falta = quando - t
+            fatos.append(f"{nome} está vivo no mapa agora" if falta <= 0 else
+                         f"{nome} nasce em {int(falta // 60)}:{int(falta % 60):02d}" if falta < 180 else "")
+        eu = meu_jogador(dados)
+        if eu and eu.get("isDead"):
+            fatos.append("Ele está morto esperando renascer")
+        ouro = int(dados["activePlayer"].get("currentGold", 0))
+        if ouro >= self.cfg["ouro_para_base"]:
+            fatos.append(f"Tem {ouro} de ouro: dá para voltar à base e comprar")
+        return [f for f in fatos if f]
+
     # ---------------- seu ouro, farm e nível ----------------
     def _ouro(self, dados, eu, t):
         ouro = dados["activePlayer"].get("currentGold", 0)

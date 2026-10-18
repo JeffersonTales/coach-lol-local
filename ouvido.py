@@ -25,6 +25,7 @@ ESPERA_PERGUNTA = 7     # depois de ouvir só "Coach", a próxima frase nesse pr
 # dica de vocabulário para o Whisper (sem isso, "item" vira "tinha", "build" vira "bilde"...)
 VOCABULARIO = ("Coach, que item eu faço agora? Build, runa, dragão, barão, arauto, torre, inibidor, "
                "jungle, caçador, top, mid, bot, suporte, farm, flash, ult, ward, visão, gank, base.")
+OI = "Oi!"
 MAX_QUADROS = 400       # frase de no máximo ~12 s
 MIN_QUADROS = 12        # menos que ~0,36 s é ruído
 
@@ -133,6 +134,8 @@ class Ouvido:
         rapido = self._transcrever(self._rapido, audio, 1)
         if self.chamou(rapido, 0.6) is None:
             return None
+        if self.voz:
+            self.voz.escrever_overlay("🎤 Entendendo…")
         texto = self._transcrever(self._bom, audio, 1, self._dica())   # beam 3 não ficou melhor nem mais rápido
         pos = self.chamou(texto, 0.75)
         if pos is None:
@@ -151,8 +154,9 @@ class Ouvido:
                     # já tinha sido chamado: esta frase inteira é a pergunta
                     pergunta = self._transcrever(self._bom, audio, 1, self._dica()).strip(" ,.!?") or None
                 if pergunta == "":
-                    # só "Coach" e uma pausa: fica quieto esperando a pergunta (falar agora atropelaria você)
-                    self._esperando_ate = time.monotonic() + ESPERA_PERGUNTA
+                    # só "Coach" e uma pausa: responde "Oi!" (curtinho, já gravado) e espera a pergunta
+                    self.voz.dizer(OI, 4, "oi")   # 4 = prioridade de resposta, fala na hora
+                    self._esperando_ate = time.monotonic() + ESPERA_PERGUNTA + 1
                     self.voz.escrever_overlay("🎤 Ouvindo…")
                     log.info("VOCÊ: Coach… (esperando a pergunta)")
                     continue

@@ -22,6 +22,7 @@ class Voz:
         self._ultimo_texto = 0.0
         self.falando = False
         self._pipeline = None
+        self._prontas = {}   # frases curtas já em áudio: tocam na hora, sem esperar a voz ser gerada
         self.escrever_overlay("")
         threading.Thread(target=self._loop, daemon=True).start()
 
@@ -33,6 +34,15 @@ class Voz:
         from kokoro import KPipeline
         self._pipeline = KPipeline(lang_code="p", repo_id="hexgrad/Kokoro-82M", device="cpu")
         list(self._pipeline("Coach pronto.", voice=self.cfg["voz"]))  # aquece
+
+    def preparar_frases(self, frases):
+        if not self._pipeline:
+            return
+        import numpy as np
+        for frase in frases:
+            partes = [r.audio.numpy() for r in self._pipeline(frase, voice=self.cfg["voz"], speed=self.cfg["velocidade"])]
+            if partes:
+                self._prontas[frase] = np.concatenate(partes)
 
     def dizer(self, texto, prioridade, chave=None):
         """Dica com a mesma chave substitui a que ainda está esperando na fila (não repete)."""
@@ -95,8 +105,11 @@ class Voz:
             import numpy as np
             import sounddevice as sd
             inicio = time.monotonic()
-            partes = [r.audio.numpy() for r in self._pipeline(texto, voice=self.cfg["voz"], speed=self.cfg["velocidade"])]
-            log.info("voz gerada em %.1fs", time.monotonic() - inicio)
+            if texto in self._prontas:
+                partes = [self._prontas[texto]]
+            else:
+                partes = [r.audio.numpy() for r in self._pipeline(texto, voice=self.cfg["voz"], speed=self.cfg["velocidade"])]
+                log.info("voz gerada em %.1fs", time.monotonic() - inicio)
             if partes:
                 sd.play(np.concatenate(partes) * self.cfg["volume"], 24000)
                 sd.wait()

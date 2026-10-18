@@ -11,6 +11,7 @@ Parar:  feche a janela ou Ctrl+C
 """
 import argparse
 import logging
+import random
 import sys
 import threading
 import time
@@ -24,7 +25,7 @@ import live_client
 from conhecimento import Conhecimento
 from guard import Guarda, baixar_prioridade
 from llm import LLM
-from ouvido import Ouvido, normalizar
+from ouvido import OI, Ouvido, normalizar
 from rules import BAIXA, NORMAL, RESPOSTA, Regras, resumo_partida
 from voice import Voz
 
@@ -32,6 +33,8 @@ PASTA = Path(__file__).resolve().parent
 INTERVALO_API = 2      # segundos entre leituras da partida
 
 log = logging.getLogger("coach")
+# ditas assim que ele entende a pergunta, para você saber que ele ouviu enquanto a IA pensa
+PENSANDO = ("Hum, deixa eu ver.", "Peraí, pensando aqui.", "Boa pergunta, deixa eu ver.")
 
 
 def configurar_log():
@@ -79,6 +82,7 @@ class Coach:
         self.em_partida = False
         self.ultimos_dados = None
         self.historico = deque(maxlen=4)   # últimas conversas, para ele entender "e depois?"
+        self._ultima_conversa = 0.0
         self.silencio_ate = 0.0            # "Coach, silêncio" pausa as dicas automáticas
         self.ultimas_dicas = deque(maxlen=6)   # a IA vê as últimas dicas para não repetir
         self._foto_macro = None                # como a partida estava na última análise geral
@@ -90,6 +94,7 @@ class Coach:
     def preparar(self):
         log.info("carregando a voz (processador)...")
         self.voz.carregar()
+        self.voz.preparar_frases(PENSANDO + (OI,))
         if self.llm:
             log.info("carregando a IA %s no Ollama...", self.cfg["llm"]["modelo"])
             log.info("IA respondeu: %s", self.llm.aquecer() or "(sem resposta — confira se o Ollama está aberto)")
@@ -118,7 +123,15 @@ class Coach:
         if not fala:
             self.voz.dizer("Fala, tô aqui!", RESPOSTA, "resposta")
             return
+        self.voz.dizer(random.choice(PENSANDO), RESPOSTA, "pensando")
+        self.voz.escrever_overlay("🤔 Pensando…")
         resumo = resumo_partida(self.ultimos_dados) if self.ultimos_dados else "Fora de partida (no lobby ou na seleção)."
+        if self.ultimos_dados:
+            fatos = self.regras.agora(self.ultimos_dados)
+            resumo += "\nAgora: " + ("; ".join(fatos) if fatos else "nenhum objetivo perto de nascer")
+        # conversa antiga não entra: o modelo pequeno copia as frases dela em vez de responder a pergunta nova
+        if time.monotonic() - self._ultima_conversa > 60:
+            self.historico.clear()
         # a pergunta espera a IA terminar uma dica automática (no máximo 3 s), em vez de ser descartada
         if not self._llm_ocupado.acquire(timeout=3):
             self.voz.dizer("Peraí, já te respondo. Pergunta de novo!", RESPOSTA, "resposta")
@@ -135,6 +148,7 @@ class Coach:
             self._llm_ocupado.release()
         resposta = resposta or "Deu um branco aqui, pergunta de novo?"
         self.historico.append((fala, resposta))
+        self._ultima_conversa = time.monotonic()
         self.voz.dizer(resposta, RESPOSTA, "resposta")
 
     def _dicas_ligadas(self):
