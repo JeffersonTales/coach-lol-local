@@ -97,8 +97,6 @@ Os modelos de voz (Kokoro) e de ouvido (Whisper) são baixados sozinhos na prime
 
 ## O que deu errado no caminho (e como resolvemos)
 
-<p align="center"><img src="docs/img/cutelo-negro.jpg" alt="O robô coach segurando uma placa: NÃO É O CUTELO NEGRO" width="560"></p>
-
 - **`qwen3:4b` vazava o raciocínio em inglês.** Ele só sabe "pensar"; use `qwen3:4b-instruct` ou `qwen3:8b` com `"think": false`.
 - **A IA inventava posição de inimigo.** O prompt deixa claro que ela não vê o mapa e deve dizer isso.
 - **Sugeriu Cutelo Negro para Master Yi.** Modelo pequeno não conhece o meta; a sugestão passou a vir da sua build e do meta do patch, com os atributos oficiais.
