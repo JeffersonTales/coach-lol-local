@@ -2,7 +2,7 @@
 
 ![Coach de LoL 100% local](docs/img/banner.jpg)
 
-Coach de voz para League of Legends que roda **inteiro no seu PC**: sem API paga, sem nuvem, sem ler a memória do jogo. É o coach que fala na live do [CanalliTV](https://twitch.tv/canallitv).
+Coach de voz para League of Legends que roda **inteiro no seu PC**: sem API paga, sem nuvem, sem ler a memória do jogo. 
 
 - Dá dicas por voz durante a partida: objetivo nascendo, inimigos mortos ("corre pro dragão"), nível 6, item fechado, inimigo forte, o que provavelmente deu errado quando você morre.
 - **Lê o minimapa** (por cor, sem IA): avisa inimigos perto de você, agrupados, na sua selva, e comenta o momento quando fica muito tempo calado.
